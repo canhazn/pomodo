@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="music-player">
+        <div class="music-player-header">
+            <h3>Danh sách nhạc</h3>
+            <button class="refresh-btn" id="refreshBtn" title="Làm mới danh sách">↻</button>
+        </div>
+        <div class="volume-control">
+            <span>Âm lượng</span>
+            <div class="volume-slider">
+                <input type="range" id="volumeSlider" min="0" max="100" value="50">
+                <span id="volumeValue">50%</span>
+            </div>
+        </div>
+        <div class="playlist" id="playlist">
+            <!-- Danh sách nhạc sẽ được tải động -->
+        </div>
+        <audio id="audioPlayer" preload="metadata"></audio>
+    </div>
+    
+    <div class="timer" id="timer">10:00</div>
+
+    <script src="main.js"></script>
+    <script src="music.js"></script>
+</body>
+</html>
