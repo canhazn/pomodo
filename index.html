@@ -246,7 +246,7 @@
 
     <script>
         // Timer functionality - Integrated from main.js
-        let WORK_TIME = 10 * 60; // thời gian làm việc mặc định (giây)
+        let WORK_TIME = 60*10; // thời gian làm việc mặc định (giây)
         let timeLeft = WORK_TIME;
         let isRunning = false;
         let interval = null;
@@ -309,7 +309,7 @@
             // Bắt đầu phát nhạc khi timer chạy
             if (window.musicPlayer && window.musicPlayer.playRandomTrackWithLoop) {
                 window.musicPlayer.playRandomTrackWithLoop();
-                window.musicPlayer.startMusicRotation(); // Bắt đầu đổi nhạc mỗi 10 phút
+                window.musicPlayer.startMusicRotation(); // Bắt đầu đổi nhạc mỗi WORK_TIME
             }
             
             interval = setInterval(() => {
@@ -317,6 +317,10 @@
                 
                 if (timeLeft === 0) {
                     playSound();
+                    // Chuyển bài nhạc tiếp theo khi timer kết thúc
+                    if (window.musicPlayer && window.musicPlayer.playNextTrack) {
+                        window.musicPlayer.playNextTrack();
+                    }
                 }
                 
                 updateDisplay();
@@ -570,6 +574,12 @@
             musicStartTime = Date.now();
         }
         
+        // Phát bài nhạc tiếp theo (dùng khi timer kết thúc)
+        function playNextTrack() {
+            if (musicFiles.length === 0) return;
+            playRandomTrackWithLoop(); // Chọn ngẫu nhiên thay vì tiếp theo
+        }
+        
         function startMusicRotation() {
             if (musicChangeInterval) {
                 clearInterval(musicChangeInterval);
@@ -579,7 +589,7 @@
                 if (musicFiles.length > 0) {
                     playRandomTrackWithLoop();
                 }
-            }, 10 * 60 * 1000);
+            }, WORK_TIME * 1000); // Đổi nhạc mỗi WORK_TIME thay vì 10 phút
         }
         
         function stopMusicRotation() {
@@ -600,6 +610,7 @@
         // Export music player API
         window.musicPlayer = {
             playRandomTrackWithLoop,
+            playNextTrack,
             startMusicRotation,
             stopMusicRotation,
             stopMusic,
