@@ -3,31 +3,617 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pomodoro</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Pomodoro Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        body.running {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+        
+        .timer {
+            transition: all 0.4s ease;
+            opacity: 0.5;
+            transform: scale(0.98);
+            text-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
+        }
+        
+        body.running .timer {
+            opacity: 1;
+            transform: scale(1);
+            text-shadow: 0 0 80px rgba(255, 255, 255, 0.5);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .music-item {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .music-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(4px);
+        }
+        
+        .music-item.playing {
+            background: rgba(255, 255, 255, 0.2);
+            border-left: 3px solid #60a5fa;
+        }
+        
+        /* Custom Scrollbar */
+        .playlist::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .playlist::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .playlist::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        
+        .playlist::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Volume Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-refresh {
+            transition: all 0.3s ease;
+        }
+        
+        .btn-refresh:hover {
+            transform: rotate(180deg);
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+        
+        /* Status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: breathe 2s ease-in-out infinite;
+        }
+        
+        @keyframes breathe {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
 </head>
-<body>
-    <div class="music-player">
-        <div class="music-player-header">
-            <h3>Danh sách nhạc</h3>
-            <button class="refresh-btn" id="refreshBtn" title="Làm mới danh sách">↻</button>
-        </div>
-        <div class="volume-control">
-            <span>Âm lượng</span>
-            <div class="volume-slider">
-                <input type="range" id="volumeSlider" min="0" max="100" value="50">
-                <span id="volumeValue">50%</span>
+<body class="min-h-screen flex items-center justify-center p-4 md:p-8">
+    <div class="w-full max-w-7xl flex flex-col lg:flex-row gap-6 lg:gap-8">
+        
+        <!-- Timer Section -->
+        <div class="flex-1 flex flex-col items-center justify-center order-1 lg:order-1 py-8 lg:py-0">
+            <div class="text-center">
+                <!-- Status Indicator -->
+                <div class="flex items-center justify-center gap-2 mb-4 opacity-70">
+                    <div class="status-dot bg-green-400"></div>
+                    <span class="text-white/80 text-sm font-medium uppercase tracking-widest">
+                        <span id="statusText">Sẵn sàng</span>
+                    </span>
+                </div>
+                
+                <!-- Timer Display -->
+                <div class="timer text-7xl sm:text-8xl md:text-9xl font-extralight tracking-wider text-white mb-6" id="timer">
+                    10:00
+                </div>
+                
+                <!-- Instructions -->
+                <p class="text-white/60 text-sm md:text-base font-light max-w-md mx-auto">
+                    Nhấp vào bất kỳ đâu để <span class="text-white/90 font-medium">bắt đầu</span> hoặc <span class="text-white/90 font-medium">tạm dừng</span>
+                </p>
             </div>
         </div>
-        <div class="playlist" id="playlist">
-            <!-- Danh sách nhạc sẽ được tải động -->
+        
+        <!-- Music Player Section -->
+        <div class="lg:w-96 order-2 lg:order-2">
+            <div class="glass-card rounded-2xl p-6 h-full lg:h-[calc(100vh-4rem)] flex flex-col">
+                
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-white font-semibold text-lg">Nhạc nền</h3>
+                            <p class="text-white/60 text-xs">Thư giãn & tập trung</p>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-refresh w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-all" 
+                            id="refreshBtn" 
+                            title="Làm mới danh sách">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Volume Control -->
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-white/70 text-xs font-medium uppercase tracking-wider">Âm lượng</label>
+                        <span id="volumeValue" class="text-white font-semibold text-sm">50%</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-white/60 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                        </svg>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" class="flex-1">
+                        <svg class="w-5 h-5 text-white/60 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Playlist -->
+                <div class="flex-1 overflow-hidden flex flex-col">
+                    <h4 class="text-white/70 text-xs font-medium uppercase tracking-wider mb-3">Danh sách phát</h4>
+                    <div class="playlist overflow-y-auto flex-1 -mx-2 px-2" id="playlist">
+                        <!-- Sample playlist items -->
+                        <div class="music-item px-4 py-3 rounded-xl mb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-white font-medium text-sm truncate">Đang tải...</div>
+                                    <div class="text-white/50 text-xs">Vui lòng đợi</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <audio id="audioPlayer" preload="metadata"></audio>
+            </div>
         </div>
-        <audio id="audioPlayer" preload="metadata"></audio>
     </div>
-    
-    <div class="timer" id="timer">10:00</div>
 
-    <script src="main.js"></script>
-    <script src="music.js"></script>
+    <script>
+        // Timer functionality - Integrated from main.js
+        let WORK_TIME = 10 * 60; // thời gian làm việc mặc định (giây)
+        let timeLeft = WORK_TIME;
+        let isRunning = false;
+        let interval = null;
+        let wakeLock = null; // Screen Wake Lock handle
+        
+        const timerElement = document.getElementById('timer');
+        const statusText = document.getElementById('statusText');
+        const body = document.body;
+        
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator && wakeLock == null) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        wakeLock = null;
+                    });
+                }
+            } catch (err) {
+                // Wake Lock có thể không được hỗ trợ hoặc bị chặn
+            }
+        }
+        
+        async function releaseWakeLock() {
+            try {
+                if (wakeLock) {
+                    await wakeLock.release();
+                    wakeLock = null;
+                }
+            } catch (_) {
+                // ignore
+            }
+        }
+        
+        // Tự động xin lại wake lock khi trở lại tab
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && isRunning) {
+                requestWakeLock();
+            }
+        });
+        
+        function formatTime(seconds) {
+            const absSeconds = Math.abs(seconds);
+            const mins = Math.floor(absSeconds / 60);
+            const secs = absSeconds % 60;
+            const sign = seconds < 0 ? '-' : '';
+            return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function updateDisplay() {
+            timerElement.textContent = formatTime(timeLeft);
+            document.title = formatTime(timeLeft);
+        }
+        
+        function startTimer() {
+            isRunning = true;
+            body.classList.add('running');
+            statusText.textContent = 'Đang chạy';
+            requestWakeLock();
+            
+            // Bắt đầu phát nhạc khi timer chạy
+            if (window.musicPlayer && window.musicPlayer.playRandomTrackWithLoop) {
+                window.musicPlayer.playRandomTrackWithLoop();
+                window.musicPlayer.startMusicRotation(); // Bắt đầu đổi nhạc mỗi 10 phút
+            }
+            
+            interval = setInterval(() => {
+                timeLeft--;
+                
+                if (timeLeft === 0) {
+                    playSound();
+                }
+                
+                updateDisplay();
+            }, 1000);
+        }
+        
+        function stopAndReset() {
+            isRunning = false;
+            body.classList.remove('running');
+            statusText.textContent = 'Sẵn sàng';
+            clearInterval(interval);
+            timeLeft = WORK_TIME;
+            updateDisplay();
+            releaseWakeLock();
+            
+            // Dừng nhạc khi timer dừng
+            if (window.musicPlayer && window.musicPlayer.stopMusic) {
+                window.musicPlayer.stopMusic();
+            }
+        }
+        
+        function playSound() {
+            const audio = new Audio('https://pomofocus.io/audios/alarms/alarm-wood.mp3');
+            audio.play();
+        }
+        
+        // Toggle timer on click
+        body.addEventListener('click', (e) => {
+            if (e.target.closest('#refreshBtn') || e.target.closest('.music-item') || e.target.closest('#volumeSlider')) return;
+            
+            if (isRunning) {
+                stopAndReset();
+            } else {
+                startTimer();
+            }
+        });
+        
+        // Export hàm để kiểm tra timer có đang chạy
+        window.timerIsRunning = () => isRunning;
+        
+        updateDisplay();
+        
+        // ========== MUSIC PLAYER LOGIC ==========
+        const MUSIC_FOLDER = 'mp3/';
+        const playlist = document.getElementById('playlist');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        let currentTrackIndex = -1;
+        let musicFiles = [];
+        let musicChangeInterval = null;
+        let musicStartTime = null;
+        let currentVolume = 0.5;
+        
+        function setVolume(value) {
+            currentVolume = Math.min(1, Math.max(0, value));
+            if (audioPlayer) {
+                audioPlayer.volume = currentVolume;
+            }
+            if (volumeSlider) {
+                volumeSlider.value = Math.round(currentVolume * 100);
+            }
+            if (volumeValue) {
+                volumeValue.textContent = `${Math.round(currentVolume * 100)}%`;
+            }
+        }
+        
+        if (volumeSlider) {
+            volumeSlider.addEventListener('input', (e) => {
+                e.stopPropagation();
+                const newValue = Number(e.target.value) / 100;
+                setVolume(newValue);
+            });
+        }
+        
+        // Khởi tạo âm lượng mặc định
+        setVolume(currentVolume);
+        
+        // Danh sách các file nhạc
+        async function loadMusicFiles() {
+            playlist.innerHTML = `
+                <div class="flex items-center justify-center py-8 text-white/50">
+                    <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Đang tải danh sách nhạc...
+                </div>
+            `;
+            
+            try {
+                const knownFiles = [
+                    'Past Lives (Instrumental).mp3',
+                    'Aaron Lansing   Naive Spin.mp3',
+                    'Advanced La La Land Suite - Piano Cover - Jacob Koller.mp3',
+                    'Always - Piano Love Ballad Instrumental Song.mp3',
+                    'Canon in C - Johann Pachelbel - Full Speed.mp3',
+                    'Canon in D (Pachelbel) Piano Cover by Ryan Jones.mp3',
+                    'Chopin - Nocturne Op. 9 No. 2 - EASY Piano Tutorial by PlutaX.mp3',
+                    'Christina Perri - A Thousand Years - EASY Piano Tutorial by PlutaX.mp3',
+                    'Fly Me to the Moon.mp3',
+                    'Fragile - Emotional Beautiful Deep Piano Instrumental 2018.mp3',
+                    'Kung Fu Panda - Oogway Ascends (Piano Version).mp3',
+                    'La La Land _ City of Stars _ Advanced Jazz Piano Cover _ With Sheet Music.mp3',
+                    'LA LA LAND - Mia and Seb\'s Theme_Epilogue __ Synthesia Piano Tutorial.mp3',
+                    'LI XIANG LAN 李香兰 Piano Cover and Tutorial.mp3',
+                    'Ludovico Einaudi - Nuvole Bianche.mp3',
+                    'Miss Her - Piano Love Ballad Instrumental Song.mp3',
+                    'Naive Spin, Aaron Lansing.mp3',
+                    'Quiet Resource.mp3',
+                    'Spirited Away Theme Song (piano).mp3',
+                    'The Sound of Silence  _  Simon & Garfunkel (Harp Cover).mp3',
+                    'The Sound of Silence _ Piano cover _ Linh Nhi.mp3',
+                    'Tom & Jerry Nostalgia _ Yannie Tan plays the Cat Concerto, Hungarian Rhapsody No.2 by Liszt.mp3'
+                ];
+                
+                musicFiles = [];
+                for (const file of knownFiles) {
+                    const filePath = MUSIC_FOLDER + encodeURIComponent(file);
+                    try {
+                        const response = await fetch(filePath, { method: 'HEAD' });
+                        if (response.ok) {
+                            musicFiles.push(file);
+                        }
+                    } catch (e) {
+                        // File không tồn tại, bỏ qua
+                    }
+                }
+                
+                if (musicFiles.length === 0) {
+                    musicFiles = knownFiles;
+                }
+                
+                renderPlaylist();
+            } catch (error) {
+                console.error('Lỗi khi tải danh sách nhạc:', error);
+                playlist.innerHTML = `
+                    <div class="text-center py-8 text-white/50 text-sm">
+                        Không thể tải danh sách nhạc
+                    </div>
+                `;
+            }
+        }
+        
+        function renderPlaylist() {
+            if (musicFiles.length === 0) {
+                playlist.innerHTML = `
+                    <div class="text-center py-8 text-white/50 text-sm">
+                        Không có bài nhạc nào
+                    </div>
+                `;
+                return;
+            }
+            
+            const gradients = [
+                'from-pink-400 to-rose-500',
+                'from-blue-400 to-cyan-500',
+                'from-green-400 to-emerald-500',
+                'from-purple-400 to-pink-500',
+                'from-cyan-400 to-blue-500',
+                'from-yellow-400 to-orange-500',
+                'from-indigo-400 to-purple-500',
+                'from-red-400 to-pink-500'
+            ];
+            
+            playlist.innerHTML = musicFiles.map((file, index) => {
+                const fileName = file.replace(/\.mp3$/i, '');
+                const gradient = gradients[index % gradients.length];
+                const isPlaying = index === currentTrackIndex;
+                
+                return `
+                    <div class="music-item px-4 py-3 rounded-xl mb-2 ${isPlaying ? 'playing' : ''}" data-index="${index}">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    ${isPlaying && !audioPlayer.paused ? 
+                                        '<path d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM13 3a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2h-2z"/>' :
+                                        '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>'
+                                    }
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-white font-medium text-sm truncate">${fileName}</div>
+                                <div class="text-white/50 text-xs">Piano • Instrumental</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            playlist.querySelectorAll('.music-item').forEach((item, index) => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (window.timerIsRunning && window.timerIsRunning()) {
+                        stopMusicRotation();
+                        playTrack(index, true);
+                        musicStartTime = Date.now();
+                        startMusicRotation();
+                    } else {
+                        playTrack(index, false);
+                    }
+                });
+            });
+        }
+        
+        function playTrack(index, loop = false) {
+            if (index < 0 || index >= musicFiles.length) return;
+            
+            currentTrackIndex = index;
+            const file = musicFiles[index];
+            const filePath = MUSIC_FOLDER + encodeURIComponent(file);
+            
+            audioPlayer.src = filePath;
+            audioPlayer.loop = loop;
+            
+            audioPlayer.play().catch(error => {
+                console.error('Lỗi khi phát nhạc:', error);
+            });
+            
+            if (!loop) {
+                audioPlayer.onended = () => {
+                    const nextIndex = (currentTrackIndex + 1) % musicFiles.length;
+                    playTrack(nextIndex, false);
+                };
+            } else {
+                audioPlayer.onended = null;
+            }
+            
+            audioPlayer.onplay = () => {
+                renderPlaylist();
+            };
+            
+            audioPlayer.onpause = () => {
+                renderPlaylist();
+            };
+            
+            renderPlaylist();
+        }
+        
+        function playRandomTrackWithLoop() {
+            if (musicFiles.length === 0) return;
+            
+            let randomIndex;
+            do {
+                randomIndex = Math.floor(Math.random() * musicFiles.length);
+            } while (randomIndex === currentTrackIndex && musicFiles.length > 1);
+            
+            playTrack(randomIndex, true);
+            musicStartTime = Date.now();
+        }
+        
+        function startMusicRotation() {
+            if (musicChangeInterval) {
+                clearInterval(musicChangeInterval);
+            }
+            
+            musicChangeInterval = setInterval(() => {
+                if (musicFiles.length > 0) {
+                    playRandomTrackWithLoop();
+                }
+            }, 10 * 60 * 1000);
+        }
+        
+        function stopMusicRotation() {
+            if (musicChangeInterval) {
+                clearInterval(musicChangeInterval);
+                musicChangeInterval = null;
+            }
+        }
+        
+        function stopMusic() {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+            stopMusicRotation();
+            musicStartTime = null;
+            renderPlaylist();
+        }
+        
+        // Export music player API
+        window.musicPlayer = {
+            playRandomTrackWithLoop,
+            startMusicRotation,
+            stopMusicRotation,
+            stopMusic,
+            setVolume
+        };
+        
+        // Refresh button handler
+        refreshBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            loadMusicFiles();
+        });
+        
+        // Load music files on page load
+        loadMusicFiles();
+    </script>
 </body>
 </html>

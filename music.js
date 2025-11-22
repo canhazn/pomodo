@@ -47,6 +47,7 @@ async function loadMusicFiles() {
         
         // Danh sách các file nhạc (có thể mở rộng)
         const knownFiles = [
+            'Past Lives (Instrumental).mp3',
             'Aaron Lansing   Naive Spin.mp3',
             'Advanced La La Land Suite - Piano Cover - Jacob Koller.mp3',
             'Always - Piano Love Ballad Instrumental Song.mp3',
