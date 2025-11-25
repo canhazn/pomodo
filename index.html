@@ -363,7 +363,7 @@
         
         updateDisplay();
         
-        // ========== MUSIC PLAYER LOGIC ==========
+        // ========== MUSIC PLAYER LOGIC ("HỘP") ==========
         const MUSIC_FOLDER = 'mp3/';
         const playlist = document.getElementById('playlist');
         const audioPlayer = document.getElementById('audioPlayer');
@@ -373,22 +373,28 @@
         let currentTrackIndex = -1;
         let musicFiles = [];
         let musicChangeInterval = null;
-        let musicStartTime = null;
         let currentVolume = 0.5;
-        
+
+        // Hộp: mỗi bài được bỏ vào hộp sẽ loop tối đa MAX_TRACK_LOOP_SECONDS
+        const MAX_TRACK_LOOP_SECONDS = 2 * 60 * 60; // 2 giờ
+        let boxTimeoutHandle = null; // timeout để dừng bài sau 2 giờ
+        let boxActiveIndex = null;    // index bài đang ở trong hộp
+
+        function clearBoxTimeout() {
+            if (boxTimeoutHandle) {
+                clearTimeout(boxTimeoutHandle);
+                boxTimeoutHandle = null;
+            }
+            boxActiveIndex = null;
+        }
+
         function setVolume(value) {
             currentVolume = Math.min(1, Math.max(0, value));
-            if (audioPlayer) {
-                audioPlayer.volume = currentVolume;
-            }
-            if (volumeSlider) {
-                volumeSlider.value = Math.round(currentVolume * 100);
-            }
-            if (volumeValue) {
-                volumeValue.textContent = `${Math.round(currentVolume * 100)}%`;
-            }
+            if (audioPlayer) audioPlayer.volume = currentVolume;
+            if (volumeSlider) volumeSlider.value = Math.round(currentVolume * 100);
+            if (volumeValue) volumeValue.textContent = `${Math.round(currentVolume * 100)}%`;
         }
-        
+
         if (volumeSlider) {
             volumeSlider.addEventListener('input', (e) => {
                 e.stopPropagation();
@@ -396,11 +402,11 @@
                 setVolume(newValue);
             });
         }
-        
+
         // Khởi tạo âm lượng mặc định
         setVolume(currentVolume);
-        
-        // Danh sách các file nhạc
+
+        // Tải danh sách file (giữ giống cũ)
         async function loadMusicFiles() {
             playlist.innerHTML = `
                 <div class="flex items-center justify-center py-8 text-white/50">
@@ -411,7 +417,7 @@
                     Đang tải danh sách nhạc...
                 </div>
             `;
-            
+
             try {
                 const knownFiles = [
                     'Past Lives (Instrumental).mp3',
@@ -437,45 +443,32 @@
                     'The Sound of Silence _ Piano cover _ Linh Nhi.mp3',
                     'Tom & Jerry Nostalgia _ Yannie Tan plays the Cat Concerto, Hungarian Rhapsody No.2 by Liszt.mp3'
                 ];
-                
+
                 musicFiles = [];
                 for (const file of knownFiles) {
                     const filePath = MUSIC_FOLDER + encodeURIComponent(file);
                     try {
                         const response = await fetch(filePath, { method: 'HEAD' });
-                        if (response.ok) {
-                            musicFiles.push(file);
-                        }
+                        if (response.ok) musicFiles.push(file);
                     } catch (e) {
-                        // File không tồn tại, bỏ qua
+                        // bỏ qua file không tồn tại
                     }
                 }
-                
-                if (musicFiles.length === 0) {
-                    musicFiles = knownFiles;
-                }
-                
+
+                if (musicFiles.length === 0) musicFiles = knownFiles;
                 renderPlaylist();
-            } catch (error) {
-                console.error('Lỗi khi tải danh sách nhạc:', error);
-                playlist.innerHTML = `
-                    <div class="text-center py-8 text-white/50 text-sm">
-                        Không thể tải danh sách nhạc
-                    </div>
-                `;
+            } catch (err) {
+                console.error('Lỗi khi tải danh sách nhạc:', err);
+                playlist.innerHTML = `<div class="text-center py-8 text-white/50 text-sm">Không thể tải danh sách nhạc</div>`;
             }
         }
-        
+
         function renderPlaylist() {
             if (musicFiles.length === 0) {
-                playlist.innerHTML = `
-                    <div class="text-center py-8 text-white/50 text-sm">
-                        Không có bài nhạc nào
-                    </div>
-                `;
+                playlist.innerHTML = `<div class="text-center py-8 text-white/50 text-sm">Không có bài nhạc nào</div>`;
                 return;
             }
-            
+
             const gradients = [
                 'from-pink-400 to-rose-500',
                 'from-blue-400 to-cyan-500',
@@ -486,21 +479,17 @@
                 'from-indigo-400 to-purple-500',
                 'from-red-400 to-pink-500'
             ];
-            
+
             playlist.innerHTML = musicFiles.map((file, index) => {
                 const fileName = file.replace(/\.mp3$/i, '');
                 const gradient = gradients[index % gradients.length];
-                const isPlaying = index === currentTrackIndex;
-                
+                const isPlaying = index === currentTrackIndex && !audioPlayer.paused;
                 return `
                     <div class="music-item px-4 py-3 rounded-xl mb-2 ${isPlaying ? 'playing' : ''}" data-index="${index}">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0">
                                 <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    ${isPlaying && !audioPlayer.paused ? 
-                                        '<path d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM13 3a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2h-2z"/>' :
-                                        '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>'
-                                    }
+                                    ${isPlaying ? '<path d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM13 3a2 2 0 00-2 2v10a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2h-2z"/>' : '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>'}
                                 </svg>
                             </div>
                             <div class="flex-1 min-w-0">
@@ -511,37 +500,71 @@
                     </div>
                 `;
             }).join('');
-            
-            // Add click handlers
-            playlist.querySelectorAll('.music-item').forEach((item, index) => {
+
+            // click handlers
+            playlist.querySelectorAll('.music-item').forEach((item) => {
+                const index = Number(item.getAttribute('data-index'));
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    // nếu timer đang chạy => bỏ bài này vào "hộp" (loop) và tiếp tục rotation
                     if (window.timerIsRunning && window.timerIsRunning()) {
-                        stopMusicRotation();
-                        playTrack(index, true);
-                        musicStartTime = Date.now();
+                        playInBox(index);
+                        // ensure rotation continues (reset timer)
                         startMusicRotation();
                     } else {
+                        // phát bình thường (không loop, sẽ chuyển tiếp theo order khi ended)
                         playTrack(index, false);
                     }
                 });
             });
         }
-        
+
+        // "Bỏ vào hộp" và phát (loop) — mỗi bài trong hộp sẽ được loop tối đa MAX_TRACK_LOOP_SECONDS
+        function playInBox(index) {
+            if (index < 0 || index >= musicFiles.length) return;
+            // clear previous box timeout
+            clearBoxTimeout();
+
+            currentTrackIndex = index;
+            boxActiveIndex = index;
+            const file = musicFiles[index];
+            const filePath = MUSIC_FOLDER + encodeURIComponent(file);
+
+            audioPlayer.src = filePath;
+            audioPlayer.loop = true;
+            audioPlayer.play().catch(err => console.error('Lỗi khi phát nhạc:', err));
+
+            // set timeout để dừng bài này nếu nó đã lặp >= MAX_TRACK_LOOP_SECONDS
+            boxTimeoutHandle = setTimeout(() => {
+                // nếu vẫn cùng bài trong hộp thì dừng
+                if (boxActiveIndex === index) {
+                    stopMusic();
+                }
+            }, MAX_TRACK_LOOP_SECONDS * 1000);
+
+            // khi play/pause thay đổi UI
+            audioPlayer.onplay = () => renderPlaylist();
+            audioPlayer.onpause = () => renderPlaylist();
+            audioPlayer.onended = null; // vì loop = true
+
+            renderPlaylist();
+        }
+
+        // playTrack dùng để phát không-loop (theo thứ tự khi ended)
         function playTrack(index, loop = false) {
             if (index < 0 || index >= musicFiles.length) return;
-            
+            // if playing in box, clear box constraints if user explicitly plays non-box track
+            clearBoxTimeout();
+
             currentTrackIndex = index;
             const file = musicFiles[index];
             const filePath = MUSIC_FOLDER + encodeURIComponent(file);
-            
+
             audioPlayer.src = filePath;
-            audioPlayer.loop = loop;
-            
-            audioPlayer.play().catch(error => {
-                console.error('Lỗi khi phát nhạc:', error);
-            });
-            
+            audioPlayer.loop = !!loop;
+
+            audioPlayer.play().catch(error => console.error('Lỗi khi phát nhạc:', error));
+
             if (!loop) {
                 audioPlayer.onended = () => {
                     const nextIndex = (currentTrackIndex + 1) % musicFiles.length;
@@ -550,79 +573,75 @@
             } else {
                 audioPlayer.onended = null;
             }
-            
-            audioPlayer.onplay = () => {
-                renderPlaylist();
-            };
-            
-            audioPlayer.onpause = () => {
-                renderPlaylist();
-            };
-            
+
+            audioPlayer.onplay = () => renderPlaylist();
+            audioPlayer.onpause = () => renderPlaylist();
+
             renderPlaylist();
         }
-        
-        function playRandomTrackWithLoop() {
+
+        // Chọn 1 bài ngẫu nhiên khác bài hiện tại rồi bỏ vào hộp (loop)
+        function playRandomIntoBox() {
             if (musicFiles.length === 0) return;
-            
             let randomIndex;
             do {
                 randomIndex = Math.floor(Math.random() * musicFiles.length);
             } while (randomIndex === currentTrackIndex && musicFiles.length > 1);
-            
-            playTrack(randomIndex, true);
-            musicStartTime = Date.now();
+            playInBox(randomIndex);
         }
-        
-        // Phát bài nhạc tiếp theo (dùng khi timer kết thúc)
+
+        // API tương thích cũ
+        function playRandomTrackWithLoop() {
+            playRandomIntoBox();
+        }
+
         function playNextTrack() {
-            if (musicFiles.length === 0) return;
-            playRandomTrackWithLoop(); // Chọn ngẫu nhiên thay vì tiếp theo
+            // theo yêu cầu: khi gọi sẽ chọn ngẫu nhiên 1 bài khác và bỏ vào hộp
+            playRandomIntoBox();
         }
-        
+
         function startMusicRotation() {
-            if (musicChangeInterval) {
-                clearInterval(musicChangeInterval);
-            }
-            
+            if (musicChangeInterval) clearInterval(musicChangeInterval);
+            // đổi bài mỗi WORK_TIME giây; mỗi lần đổi sẽ "bỏ" 1 bài mới vào hộp (với timeout 2h)
             musicChangeInterval = setInterval(() => {
-                if (musicFiles.length > 0) {
-                    playRandomTrackWithLoop();
-                }
-            }, WORK_TIME * 1000); // Đổi nhạc mỗi WORK_TIME thay vì 10 phút
+                if (musicFiles.length > 0) playRandomIntoBox();
+            }, WORK_TIME * 1000);
         }
-        
+
         function stopMusicRotation() {
             if (musicChangeInterval) {
                 clearInterval(musicChangeInterval);
                 musicChangeInterval = null;
             }
         }
-        
+
         function stopMusic() {
             audioPlayer.pause();
             audioPlayer.currentTime = 0;
+            audioPlayer.src = '';
+            // clear box constraints
+            clearBoxTimeout();
             stopMusicRotation();
-            musicStartTime = null;
             renderPlaylist();
         }
-        
-        // Export music player API
+
+        // Expose API
         window.musicPlayer = {
             playRandomTrackWithLoop,
             playNextTrack,
             startMusicRotation,
             stopMusicRotation,
             stopMusic,
-            setVolume
+            setVolume,
+            playInBox
         };
-        
+
         // Refresh button handler
         refreshBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             loadMusicFiles();
         });
-        
+
         // Load music files on page load
         loadMusicFiles();
     </script>
